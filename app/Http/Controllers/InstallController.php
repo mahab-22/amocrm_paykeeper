@@ -15,14 +15,11 @@ class InstallController extends Controller
 
     function install(Request $request)
     {
-
-      $request->validate([
+        $request->validate([
           'code' => ['required'],
           'referer' => ['required'],
           'client_id' => ['required']
-      ]);
-        //Log::debug($request);
-
+        ]);
         $AMOClient = new AmoCRMApiClient(
             $_ENV['AMO_APP_ID'],
             $_ENV['AMO_SECRET_KEY'],
@@ -31,22 +28,18 @@ class InstallController extends Controller
         $AMOClient->setAccountBaseDomain($request->input('referer'));
         $raw_token = $AMOClient->getOAuthClient()->getAccessTokenByCode($request->input('code'));
         $token_array = $raw_token->jsonSerialize();
-        //Log::debug($token_array);
 
         $AMO_token = new AccessToken($token_array);
         $AMOClient->setAccessToken($AMO_token);
-        try
-        {
+        try {
             $account = $AMOClient->account()->getCurrent()->toArray();
         }
-        catch (Exception $exception)
-        {
+        catch (Exception $exception) {
             Log::error("Ошибка получения данных аккаунта {$request->input('referer')}");
             return response("Ошибка получения данных аккаунта",200);
         }
         $user = User::query()->where('account_id' , $account['id'])->first();
-        if(is_null($user))
-        {
+        if(is_null($user)) {
             $user = User::query()->create(
                 [
                     'client_id' => $request->input('client_id'),
@@ -57,8 +50,7 @@ class InstallController extends Controller
                     'refresh_token'=> $token_array['refresh_token'],
                     'refresh_token_expires'=> time()+7776000,
                 ]);
-        } elseif (isset($user))
-        {
+        } elseif (isset($user)) {
             $user->referer = $request->input('referer');
             $user->access_token=$token_array['access_token'];
             $user->access_token_expires=$token_array['expires'];
@@ -67,8 +59,6 @@ class InstallController extends Controller
             $user->save();
         }
         return response("Installed successfully", 200);
-        //Log::debug($account);
-        //return response("Установлено успешно",200);
     }
     function deactivate(Request $request)
     {
@@ -89,8 +79,5 @@ class InstallController extends Controller
         $user->pk_url=null;
         $user->save();
         return response('Uninstalled successfully',200);
-//        Log::debug("================================= Deactivated ==================================");
-//        Log::debug($request->headers);
-//        Log::debug($request);
     }
 }

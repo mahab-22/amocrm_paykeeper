@@ -34,17 +34,14 @@ class PaymentController extends Controller
         );
         $user = User::query()->where('account_id',$request->account_id)->first();
 
-        if(is_null($user))
-        {
+        if(is_null($user)) {
             return response("<h2>Такого аккаунта не существует!</h2", 200);
             Log::log("Попытка запроса несуществующего аккаунта {$request->account_id}");
         }
-        if(($user->active==0) || (empty($user->pk_url)) || (empty($user->secret_word)))
-        {
+        if(($user->active==0) || (empty($user->pk_url)) || (empty($user->secret_word))) {
             return response("<h2>Аккаунт не активирован. Обратитесь к продавцу.</h2", 200);
         }
-        if((empty($user->pk_url)) || (empty($user->secret_word)))
-        {
+        if((empty($user->pk_url)) || (empty($user->secret_word))) {
             return response("<h2>Аккаунт продавца не настроен. Обратитесь к продавцу.</h2", 200);
         }
         $AMOClient->setAccountBaseDomain($user->referer);
@@ -55,23 +52,20 @@ class PaymentController extends Controller
             'refresh_token' => $user->refresh_token,
             'expires' => $user->access_token_expires,
         ];
-        //dump($token_array);
         $AMO_token = new AccessToken($token_array);
         $AMOClient->setAccessToken($AMO_token);
-        $AMOClient->onAccessTokenRefresh(function ($raw_token,$baseDomain){
-            $user=User::query()->where('referer',$baseDomain)->first();
-            $token_array = $raw_token->jsonSerialize();
-            $user->access_token = $token_array['access_token'];
-            $user->refresh_token = $token_array['refresh_token'];
-            $user->access_token_expires = $token_array['expires'];
-            $user->refresh_token_expires = time()+7776000;
-            $user->save();
-//            dump($token_array);
-//            dump($baseDomain);
-        });
-//        $account = $AMOClient->account()->getCurrent(AccountModel::getAvailableWith());
-//        dump("Аккаунт");
-//        dump($account);
+        $AMOClient->onAccessTokenRefresh(
+            function ($raw_token,$baseDomain)
+            {
+                $user=User::query()->where('referer',$baseDomain)->first();
+                $token_array = $raw_token->jsonSerialize();
+                $user->access_token = $token_array['access_token'];
+                $user->refresh_token = $token_array['refresh_token'];
+                $user->access_token_expires = $token_array['expires'];
+                $user->refresh_token_expires = time()+7776000;
+                $user->save();
+            });
+
         $catalogsFilter = new CatalogsFilter();
         $catalogsFilter->setType(EntityTypesInterface::INVOICES_CATALOG_TYPE_STRING);
         $invoicesCatalog = $AMOClient->catalogs()->get($catalogsFilter)->first();
@@ -86,32 +80,23 @@ class PaymentController extends Controller
         }
         if ($invoiceLink = $invoice->getInvoiceLink()) {
             $user_result_callback = $invoiceLink;
-        } else
-        {
+        } else {
             return response("<h2>Отсутствует ссылка на  счет. Обратитесь в техподдржку сервиса</h2", 200);
             Log::error('Отсутствует ссылка на  счет. Счет ниже');
             Log::error($invoice);
         }
 
-
-//        dump("Кастомфилд счета");
-//        dump($customFieldValues);
         $customFieldValues = $invoice->getCustomFieldsValues();
         $pk_obj = new PaykeeperPayment();
         if ($vatValue = $customFieldValues->getBy('fieldCode', InvoicesCustomFieldsEnums::VAT_TYPE)) {
-//            dump('НДС');
-//            dump($vatValue->getValues()->first()->toApi());
             $pk_obj->setUseTaxes();
             $vat_field = $vatValue->getValues()->first()->toApi()['enum_code'];
-            if($vat_field==InvoicesCustomFieldsEnums::VAT_NOT_INCLUDED)
-            {
+            if ($vat_field==InvoicesCustomFieldsEnums::VAT_NOT_INCLUDED) {
                 $pk_obj->tax_included =false;
             }
-            else if($vat_field==InvoicesCustomFieldsEnums::VAT_INCLUDED)
-            {
+            else if ($vat_field==InvoicesCustomFieldsEnums::VAT_INCLUDED) {
                 $pk_obj->tax_included =true;
             }
-
         };
 
         /** Получаем контакты покупателя */
@@ -121,52 +106,36 @@ class PaymentController extends Controller
         $clientid='';
 
         if ($payerValue = $customFieldValues->getBy('fieldCode', InvoicesCustomFieldsEnums::PAYER)) {
-//            dump("Покупатель");
-            //dump($payerValue->getValues()->first()->getValue());
             $payer_obj = $payerValue->getValues()->first()->getValue();
-            if($payer_obj['entity_type']=='companies')
-            {
+            if ($payer_obj['entity_type']=='companies') {
                 $companyServise = $AMOClient->companies();
                 $filter = new CompaniesFilter();
                 $filter->setIds([$payer_obj['entity_id']]);
                 $client_obj = $companyServise->get($filter)->first();
             }
-            if($payer_obj['entity_type']=='contacts')
-            {
+            if ($payer_obj['entity_type']=='contacts') {
                 $contactServise = $AMOClient->contacts();
                 $filter = new ContactsFilter();
                 $filter->setIds([$payer_obj['entity_id']]);
                 $client_obj = $contactServise->get($filter)->first();
             }
 
-            if(isset($client_obj))
-            {
-                //Log::debug($client_obj);
+            if(isset($client_obj)) {
                 $phone_field = $client_obj->getCustomFieldsValues()->getBy('fieldCode', 'PHONE');
-
                 $email_field = $client_obj->getCustomFieldsValues()->getBy('fieldCode', 'EMAIL');
-                if(isset($email_field))
-                {
+                if( isset($email_field)) {
                     $client_email = $email_field->getValues()->first()->getValue();
                 }
-                if(isset($client_phone))
-                {
+                if (isset($client_phone)) {
                     $client_phone = $phone_field->getValues()->first()->getValue();
                 }
             }
 
-            $clientid_field   = $customFieldValues->getBy('fieldCode', InvoicesCustomFieldsEnums::PAYER);
-            if(isset($clientid_field))
-            {
+            $clientid_field = $customFieldValues->getBy('fieldCode', InvoicesCustomFieldsEnums::PAYER);
+            if(isset($clientid_field)) {
                 $clientid = $clientid_field->getValues()->first()->getValue()['name'];
             }
-
         }
-//        else
-//        {
-//            return response("<h2>В счете отсутствует контрагент. Обратитесть к продавцу</h2", 200);
-//
-//        }
         if (is_null($customFieldValues->getBy('fieldCode', InvoicesCustomFieldsEnums::PRICE))) {
             return response('<h2>Платежная система не поддерживает счета без суммы</h2>',200);
             die;
@@ -200,8 +169,7 @@ class PaymentController extends Controller
         $total_sum =0;
         if ($itemsValue = $customFieldValues->getBy('fieldCode', InvoicesCustomFieldsEnums::ITEMS)) {
             /** @var ItemsCustomFieldValueModel $item */
-            foreach ($itemsValue->getValues() as $item)
-            {
+            foreach ($itemsValue->getValues() as $item) {
                 $tax_amount = 0;
                 $tax_rate = 0;
                 $taxes = array("tax" => "none", "tax_sum" => 0);
@@ -213,14 +181,10 @@ class PaymentController extends Controller
 
                 /* Применяем скидки */
 
-                if($item->toArray()["discount"]["value"]>0)
-                {
-                    if($item->toArray()["discount"]['type']=='percentage')
-                    {
+                if ($item->toArray()["discount"]["value"]>0) {
+                    if ($item->toArray()["discount"]['type']=='percentage') {
                         $position_sum = $position_sum - ($position_sum/100)*$item->toArray()["discount"]["value"];
-                    }
-                    else
-                    {
+                    } else {
                         $position_sum = $position_sum - $item->toArray()["discount"]["value"];
                     }
                     $price =number_format($position_sum/$quantity,2,'.','');
@@ -228,8 +192,7 @@ class PaymentController extends Controller
 
                 /* НДС сверху суммы */
 
-                if($pk_obj->use_taxes && !$pk_obj->tax_included)
-                {
+                if ($pk_obj->use_taxes && !$pk_obj->tax_included) {
                     $price = number_format($price+(($price/100)*$tax_rate),2,'.','');
                     $position_sum = number_format($price*$quantity,2,'.','');
                 }
@@ -239,29 +202,26 @@ class PaymentController extends Controller
                     $pk_obj->more_then_one_item_index = $item_index;
                 $taxes = $pk_obj->setTaxes($tax_rate);
                 $pk_obj->updateFiscalCart($pk_obj->getPaymentFormType(),
-                    $name, $price, $quantity, $position_sum, $taxes["tax"]);
+                                            $name,
+                                            $price,
+                                            $quantity,
+                                            $position_sum,
+                                            $taxes["tax"]);
                 $total_sum+=$position_sum;
                 $item_index++;
             }
-
-        }
-        else
-        {
+        } else {
            return response("<h2>В счете отсутствуют товары. Обратитесть к продавцу</h2", 200);
-
-
         }
 
         $pk_obj->order_total = $total_sum;
-        $order = Order::query()->where([
+        $order = Order::query()->where ([
             'orderid'       =>  $pk_obj->getOrderParams("orderid"),
             'account_id'    =>  $user->account_id
         ])->first();
 
-        if(is_null($order))
-        {
-            $order = Order::query()->create
-            ([
+        if (is_null($order)) {
+            $order = Order::query()->create ([
                 'orderid'       =>  $pk_obj->getOrderParams("orderid"),
                 'account_id'    =>  $user->account_id,
                 'referer'       =>  $user->referer,
@@ -269,9 +229,7 @@ class PaymentController extends Controller
                 'cart'          => json_encode($pk_obj->fiscal_cart),
                 'payed'         => 'new'
             ]);
-        }
-        else
-        {
+        } else {
             $order->orderid = $pk_obj->getOrderParams("orderid");
             $order->account_id    =  $user->account_id;
             $order->referer       =  $user->referer;
@@ -280,13 +238,9 @@ class PaymentController extends Controller
             $order->payed         = 'new';
             $order->save();
         }
-
         $secret_seed = $user->secret_word;
-
         $to_hash =$sum . $clientid. $orderid . $service_name . $client_email . $client_phone . $secret_seed ;
         $sign = hash('sha256' , $to_hash);
         return view('payment_form',['order'=>$pk_obj,'sign'=>$sign, 'user_result_callback'=>$user_result_callback]);
-        //dump($pk_obj);
-
     }
 }

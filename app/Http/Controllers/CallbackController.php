@@ -24,9 +24,7 @@ class CallbackController extends Controller
 {
     function __invoke(Request $request)
     {
-        //Log::debug($request);
-        if(empty($request->id) || empty($request->orderid)|| empty($request->sum) || empty($request->service_name) || empty($request->key))
-        {
+        if(empty($request->id) || empty($request->orderid)|| empty($request->sum) || empty($request->service_name) || empty($request->key)){
             Log::error("Ошибка оповещения. Не хватает параметров");
             return response("Ошибка оповещения. Не хватает параметров", 200);
         }
@@ -37,15 +35,12 @@ class CallbackController extends Controller
                 $account_id = $data[0];
                 $referer = $data[1];
             }
-        }
-        else
-        {
+        } else {
             Log::error("Параметр service_name имеет не правильный формат");
             return response("Параметр service_name имеет не  правильный формат", 200);
         }
         $user = User::query()->where('account_id',$account_id)->first();
-        if(is_null($user))
-        {
+        if(is_null($user)) {
             Log::error("Аккаунт не найден {$account_id}");
             return response("Аккаунт не найден {$account_id}", 200);
         }
@@ -53,18 +48,14 @@ class CallbackController extends Controller
             'account_id'=>$account_id,
             'orderid'=>$request->orderid,
         ])->first();
-        if(empty($order))
-        {
+        if(empty($order)) {
             return response("Заказ {$request->orderid} для {$account_id} не найден ", 200);
         }
-        if($order->payed=='payed')
-        {
-            if ($request->key = md5 ($request->id . sprintf ("%.2lf", $request->sum).$clientid.$request->orderid.$user->secret_word))
-            {
+        if($order->payed=='payed') {
+            if ($request->key = md5 ($request->id . sprintf ("%.2lf", $request->sum).$clientid.$request->orderid.$user->secret_word)) {
                 $hash = md5($request->id.$user->secret_word);
                 return response("OK {$hash}");
             }
-
         }
 
         /* Создаем AMO клиента */
@@ -131,17 +122,11 @@ class CallbackController extends Controller
         $order->paykeeper_id = $request->id;
         $order->payed = 'payed';
         $order->save();
-        //Log::debug($request);
-        if ($request->key = md5 ($request->id . sprintf ("%.2lf", $request->sum).$clientid.$request->orderid.$user->secret_word))
-        {
+        if ($request->key = md5 ($request->id . sprintf ("%.2lf", $request->sum).$clientid.$request->orderid.$user->secret_word)) {
             $hash = md5($request->id.$user->secret_word);
             return response("OK {$hash}");
-        }
-        else
-        {
+        } else {
             return response("Error! Hash mismatch");
         }
-
-
     }
 }

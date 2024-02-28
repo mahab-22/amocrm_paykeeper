@@ -14,19 +14,15 @@ class SettingsController extends Controller
 {
     function install(Request $request)
     {
-
         $user = User::query()->where(
             'referer',$request['domain']
         )->first();
-        if (is_null($user))
-        {
+        if (is_null($user)) {
             return response('{"status":"error","msg":"Аккаунт не существует"}');
         }
-        if(isset($user->pk_url,$user->secret_word,$user->email))
-        {
+        if (isset($user->pk_url,$user->secret_word,$user->email)) {
             return response('{"status":"error","msg":"Аккаунт уже активирован"}',200);
-        } else
-        {
+        } else {
             $user->pk_url = $request['payment_url'];
             $user->secret_word = $request['secret_word'];
             $user->email = $request['email'];
@@ -34,8 +30,6 @@ class SettingsController extends Controller
             $user->save();
             return response('{"status":"ok","msg":"Аккаунт успешно активирован"}',200);
         }
-//        Log::debug($request->headers);
-//        Log::debug($request);
         return response('ok',200);
     }
     function settings_get(Request $request)
@@ -43,27 +37,22 @@ class SettingsController extends Controller
         $user = User::query()->where(
             'referer',$request['domain']
         )->first();
-        if(is_null($user))
-        {
+        if(is_null($user)) {
             return response('{"status":"error","msg":"Аккаунт не существует"}');
         }
-        //if(isset($user->pk_url)) Log::debug($user->pk_url);
-
-        if(isset($user->pk_url,$user->secret_word,$user->email))
+        if (isset($user->pk_url,$user->secret_word,$user->email))
         {
             return response('{"status":"ok","msg":"Аккаунт активирован"}',200);
-        } else
-        {
+        } else {
             return response('{"status":"error","msg":"Аккаунт не активироан"}',200);
         }
-
     }
     function mail(Request $request)
     {
-        if(!$request->has('domain')) return response('{"status":"error","msg":"Отсутствует необходимый параметр"}',200);
+        if(!$request->has('domain'))
+            return response('{"status":"error","msg":"Отсутствует необходимый параметр"}',200);
         $user = User::query()->where('referer',$request->domain)->first();
-        if(is_null($user))
-        {
+        if(is_null($user)) {
             Log::error("Ошибка. {$request->domain} не существует");
             return response('{"status":"error","msg":"Такого домена не существует"}',200);
         }
@@ -73,16 +62,12 @@ class SettingsController extends Controller
             'account_id'     =>  $user->account_id
         ]);
         Log::debug($request->domain);
-        try
-        {
+        try {
             Mail::to($user->email)->send(new RestoreReferenceMail($token_string));
-        }
-        catch(Exception $e)
-        {
+        } catch(Exception $e) {
             Log::error("Ошибка отправки сообщения для {$request->domain}");
             return response('{"status":"error","msg":"Произошла ошибка при отправке письма"}',200);
         }
-
         return response('{"status":"ok","msg":"Ссылка отправлена. Срок действия  - 1 час"}',200);
     }
 }
